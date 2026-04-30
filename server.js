@@ -15,7 +15,7 @@ const app = express();
 //Middleware
 app.use(express.json());
 app.use(cors({
-    origin: [ "https://your-frontend-link.onrender.com"], // Sarva origins la allow kara (development sathi)
+    origin: [ "https://saptpadi-frontend.vercel.app"], // Sarva origins la allow kara (development sathi)
     methods: ["GET", "POST", "DELETE", "PUT"], // Allowed HTTP methods
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true // Cookies and authentication headers sathi allow kara    
