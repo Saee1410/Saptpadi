@@ -18,8 +18,11 @@ app.use(cors({
     origin: [ "https://saptpadi-frontend.vercel.app"], // Sarva origins la allow kara (development sathi)
     methods: ["GET", "POST", "DELETE", "PUT"], // Allowed HTTP methods
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true // Cookies and authentication headers sathi allow kara    
+    credentials: true, // Cookies and authentication headers sathi allow kara    
+    optionsSuccessStatus: 200 // Preflight requests sathi status code
 }));
+
+app.options('*', cors());
 //app.use(cors());
 
 //uploads foldera for storing images
