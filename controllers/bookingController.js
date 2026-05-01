@@ -127,13 +127,13 @@ const cancleBooking = async (req, res) => {
     try {
         const {id} = req.params;
 
-        const updatetedBooking = await Booking.findByIdAndUpdate(
+        const updatedBooking = await Booking.findByIdAndUpdate(
             id,
             {status: "Cancelled"},
             {new: true}
         );
 
-        if (!updatetedBooking) {
+        if (!updatedBooking) {
             return res.status(404).json({
                 success: false,
                 message: "Booking not found"
@@ -142,7 +142,7 @@ const cancleBooking = async (req, res) => {
         res.status(200).json({
             success: true,
             message: "Booking cancelled successfully",
-            booking: updatetedBooking
+            booking: updatedBooking
         });
 
     } catch (error) {
@@ -188,5 +188,5 @@ module.exports = {
      updateBookingStatus: exports.updateBookingStatus,
      getVendorBookings: exports.getVendorBookings,
      cancleBooking,
-        deleteBooking
+        deleteBooking: exports.deleteBooking
     };    
