@@ -58,56 +58,7 @@ exports.createAtomicBooking = async (req, res) => {
     }
 };
 
-// exports.createAtomicBooking = async (req, res) => {
-//     let lockKey = null;
-//     try {
-//         const { serviceId, userId, startDate, endDate, message, eventCity, vendorId: providedVendorId } = req.body;
 
-//         let finalVendorId = providedVendorId;
-
-//         // १. जर serviceId मॅन्युअल असेल (६५फ१२३ ने सुरू होणारा), तर DB चेक स्किप करा
-//         if (!serviceId.startsWith('65f123')) {
-//             const service = await Service.findById(serviceId);
-//             if (!service) return res.status(404).json({ success: false, message: "Service not found" });
-//             finalVendorId = service.vendorId;
-//         }
-
-//         if (!finalVendorId) return res.status(400).json({ success: false, message: "Vendor ID missing" });
-
-//         lockKey = `lock:vendor:${finalVendorId}`;
-//         const acquired = await client.set(lockKey, "locked", { NX: true, EX: 10 });
-        
-//         if (!acquired) {
-//             return res.status(429).json({ success: false, message: "Vendor is busy. Try again." });
-//         }
-
-//         const start = new Date(startDate);
-//         const end = new Date(endDate);
-
-//         const existingConflict = await Booking.findOne({
-//             vendorId: finalVendorId,
-//             status: { $in: ['Pending', 'Accepted'] },
-//             $or: [{ startDate: { $lte: end }, endDate: { $gte: start } }]
-//         });
-
-//         if (existingConflict) {
-//             return res.status(400).json({ success: false, message: "Dates already booked!" });
-//         }
-
-//         const newBooking = new Booking({
-//             serviceId, userId, vendorId: finalVendorId, startDate: start, endDate: end,
-//             message, eventCity, status: "Pending"
-//         });
-
-//         await newBooking.save();
-//         res.status(201).json({ success: true, message: "Booking Request Sent!" });
-
-//     } catch (err) {
-//         res.status(500).json({ success: false, message: err.message });
-//     } finally {
-//         if (lockKey) await client.del(lockKey);
-//     }
-// };
 
 
 exports.updateBookingStatus = async (req, res) => {
@@ -131,29 +82,35 @@ exports.updateBookingStatus = async (req, res) => {
     }
 };
 
+exports.getVendorBookings = async (req, res) => {
+    try {
+        const { vendorId } = req.params;
 
-// exports.getVendorBookings = async (req, res) => {
-//     try {
-//         const { vendorId} = req.params;
+        // वेंडर आयडी 'ObjectId' मध्ये कन्व्हर्ट करणे अनिवार्य आहे
+        const bookings = await Booking.find({ 
+            vendorId: new mongoose.Types.ObjectId(vendorId) 
+        })
+        .populate('userId', 'name email contact')
+        .populate('serviceId', 'businessName price photo style')
+        .sort({ createdAt: -1 });
 
-//         const bookings = await Booking.find({ vendorId: vendorId })
-//            .populate('userId', 'name email contact')
-//            .populate('serviceId', 'businessName price photo style')
-//            .sort({ createdAt: -1 });
+        res.status(200).json({ success: true, bookings });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message }); 
+    }
+};
 
-//            res.status(200).json({ success: true, bookings });
-//     } catch (err) {
-//         res.status(500).json({ success: false, message: err.message }); 
-//     }
-// };
 
 // exports.getVendorBookings = async (req, res) => {
 //     try {
 //         const { vendorId } = req.params;
 
-//         // ID valid aahe ka te check kara ani conversion kara
 //         const bookings = await Booking.find({ 
-//             vendorId: new mongoose.Types.ObjectId(vendorId) 
+//             // String kiva ObjectId kontahi asel tari shodhel
+//             $or: [
+//                 { vendorId: vendorId }, 
+//                 { vendorId: new mongoose.Types.ObjectId(vendorId) }
+//             ]
 //         })
 //         .populate('userId', 'name email contact')
 //         .populate('serviceId', 'businessName price photo style')
@@ -165,28 +122,6 @@ exports.updateBookingStatus = async (req, res) => {
 //         res.status(500).json({ success: false, message: err.message }); 
 //     }
 // };
-
-exports.getVendorBookings = async (req, res) => {
-    try {
-        const { vendorId } = req.params;
-
-        const bookings = await Booking.find({ 
-            // String kiva ObjectId kontahi asel tari shodhel
-            $or: [
-                { vendorId: vendorId }, 
-                { vendorId: new mongoose.Types.ObjectId(vendorId) }
-            ]
-        })
-        .populate('userId', 'name email contact')
-        .populate('serviceId', 'businessName price photo style')
-        .sort({ createdAt: -1 });
-
-        console.log(`Found ${bookings.length} bookings for vendor: ${vendorId}`);
-        res.status(200).json({ success: true, bookings });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message }); 
-    }
-};
 
 const cancleBooking = async (req, res) => {
     try {
