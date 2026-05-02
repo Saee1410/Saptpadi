@@ -39,7 +39,7 @@ exports.createAtomicBooking = async (req, res) => {
       const newBooking = new Booking({
     // जर मॅन्युअल आयडी असेल, तर तो डेटाबेसमध्ये नसल्यामुळे एरर येऊ शकतो.
     // खात्री करा की serviceId हा प्रॉपर 24-character hex string आहे.
-    serviceId: serviceId, 
+    serviceId: serviceInDb ? serviceInDb._id : null,
     userId: userId, 
     vendorId: finalVendorId, 
     startDate: new Date(startDate), 
@@ -141,7 +141,11 @@ exports.getVendorBookings = async (req, res) => {
 
         // वेंडर आयडी 'ObjectId' मध्ये कन्व्हर्ट करणे अनिवार्य आहे
         const bookings = await Booking.find({ 
-            vendorId: new mongoose.Types.ObjectId(vendorId) 
+            $or: [
+        { vendorId: vendorId },
+        { vendorId: new mongoose.Types.ObjectId(vendorId) }
+    ]
+            // vendorId: new mongoose.Types.ObjectId(vendorId) 
         })
         .populate('userId', 'name email contact')
         .populate('serviceId', 'businessName price photo style')
