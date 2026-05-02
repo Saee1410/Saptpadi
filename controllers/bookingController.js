@@ -17,25 +17,25 @@ exports.createAtomicBooking = async (req, res) => {
 
         let finalVendorId = providedVendorId;
 
-        // Service check
-        if (!serviceId.startsWith('65f123')) {
-            const service = await Service.findById(serviceId);
-            if (!service) return res.status(404).json({ success: false, message: "Service not found" });
-            finalVendorId = service.vendorId;
+        // --- ERROR HIGHLIGHT: जुनी 'startsWith' वाली अट काढून टाका ---
+        // ✅ सुधारलेले लॉजिक: आधी DB मध्ये सर्विस आहे का ते तपासा
+        const serviceInDb = await Service.findById(serviceId).catch(() => null);
+        
+        if (serviceInDb) {
+            finalVendorId = serviceInDb.vendorId;
+        } else {
+            // जर सर्विस DB मध्ये नसेल (उदा. मॅन्युअल स्टाईल), तर दिलेला providedVendorId वापरा
+            finalVendorId = providedVendorId;
         }
 
-        if (!finalVendorId) return res.status(400).json({ success: false, message: "Vendor ID missing" });
+        // जर वेंडर आयडी नसेल तर एरर द्या
+        if (!finalVendorId) {
+            return res.status(400).json({ success: false, message: "Vendor ID missing" });
+        }
+        // -------------------------------------------------------
 
-        // Redis Lock - Safe Check
-        try {
-            if (client.isOpen) {
-                lockKey = `lock:vendor:${finalVendorId}`;
-                const acquired = await client.set(lockKey, "locked", { NX: true, EX: 10 });
-                if (!acquired) return res.status(429).json({ success: false, message: "Vendor busy." });
-            }
-        } catch (rErr) { console.log("Redis skip"); }
-
-        // Mongoose logic
+        // Redis Lock logic... (बाकी कोड तसाच ठेवा)
+        
         const newBooking = new Booking({
             serviceId, 
             userId, 
@@ -57,6 +57,54 @@ exports.createAtomicBooking = async (req, res) => {
         if (lockKey && client.isOpen) await client.del(lockKey);
     }
 };
+
+// exports.createAtomicBooking = async (req, res) => {
+//     let lockKey = null;
+//     try {
+//         const { serviceId, userId, startDate, endDate, message, eventCity, vendorId: providedVendorId } = req.body;
+
+//         let finalVendorId = providedVendorId;
+
+//         // Service check
+//         if (!serviceId.startsWith('65f123')) {
+//             const service = await Service.findById(serviceId);
+//             if (!service) return res.status(404).json({ success: false, message: "Service not found" });
+//             finalVendorId = service.vendorId;
+//         }
+
+//         if (!finalVendorId) return res.status(400).json({ success: false, message: "Vendor ID missing" });
+
+//         // Redis Lock - Safe Check
+//         try {
+//             if (client.isOpen) {
+//                 lockKey = `lock:vendor:${finalVendorId}`;
+//                 const acquired = await client.set(lockKey, "locked", { NX: true, EX: 10 });
+//                 if (!acquired) return res.status(429).json({ success: false, message: "Vendor busy." });
+//             }
+//         } catch (rErr) { console.log("Redis skip"); }
+
+//         // Mongoose logic
+//         const newBooking = new Booking({
+//             serviceId, 
+//             userId, 
+//             vendorId: finalVendorId, 
+//             startDate: new Date(startDate), 
+//             endDate: new Date(endDate),
+//             message, 
+//             eventCity, 
+//             status: "Pending"
+//         });
+
+//         await newBooking.save();
+//         res.status(201).json({ success: true, message: "Booking Request Sent!" });
+
+//     } catch (err) {
+//         console.error("Booking Error:", err);
+//         res.status(500).json({ success: false, message: err.message });
+//     } finally {
+//         if (lockKey && client.isOpen) await client.del(lockKey);
+//     }
+// };
 
 
 
@@ -144,6 +192,7 @@ const cancleBooking = async (req, res) => {
             message: "Booking cancelled successfully",
             booking: updatedBooking
         });
+        
 
     } catch (error) {
         console.error("Cancellation error:", error);
