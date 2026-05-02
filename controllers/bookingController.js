@@ -3,32 +3,16 @@ const mongoose = require('mongoose');
 const Service = require('../models/Service');
 const redis = require('redis');
 
-// ✅ Redis client with timeout
+// ✅ Redis client (NON-BLOCKING)
 const client = redis.createClient({
-  url: 'redis://default:********@coherent-filly-112366.upstash.io:6379',
-  socket: {
-    connectTimeout: 5000
-  }
+  url: 'redis://default:********@coherent-filly-112366.upstash.io:6379'
+});
+
+client.connect().catch(() => {
+  console.log("⚠️ Redis not connected");
 });
 
 client.on('error', (err) => console.log('Redis Error:', err));
-
-// ✅ Safe Redis connect (no hang)
-(async () => {
-  try {
-    if (!client.isOpen) {
-      await Promise.race([
-        client.connect(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Redis connect timeout")), 5000)
-        )
-      ]);
-      console.log("✅ Redis connected");
-    }
-  } catch (err) {
-    console.log("⚠️ Redis skipped:", err.message);
-  }
-})();
 
 
 // ================= CREATE BOOKING =================
@@ -38,7 +22,15 @@ exports.createAtomicBooking = async (req, res) => {
   try {
     console.log("Incoming Booking:", req.body);
 
-    const { serviceId, userId, startDate, endDate, message, eventCity, vendorId: providedVendorId } = req.body;
+    const {
+      serviceId,
+      userId,
+      startDate,
+      endDate,
+      message,
+      eventCity,
+      vendorId: providedVendorId
+    } = req.body;
 
     let finalVendorId = providedVendorId;
 
@@ -50,30 +42,35 @@ exports.createAtomicBooking = async (req, res) => {
     }
 
     if (!finalVendorId) {
-      return res.status(400).json({ success: false, message: "Vendor ID missing" });
+      return res.status(400).json({
+        success: false,
+        message: "Vendor ID missing"
+      });
     }
 
     // ================= REDIS LOCK (SAFE) =================
+    let lockAcquired = true;
+
     try {
       if (client.isOpen) {
         lockKey = `lock:vendor:${finalVendorId}`;
 
-        const acquired = await Promise.race([
-          client.set(lockKey, "locked", { NX: true, EX: 10 }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Redis timeout")), 3000)
-          )
-        ]);
+        const result = await client.set(lockKey, "locked", {
+          NX: true,
+          EX: 10
+        });
 
-        if (!acquired) {
-          return res.status(429).json({
-            success: false,
-            message: "Vendor busy. Try again."
-          });
-        }
+        if (!result) lockAcquired = false;
       }
     } catch (err) {
-      console.log("⚠️ Redis lock skipped:", err.message);
+      console.log("⚠️ Redis skipped");
+    }
+
+    if (!lockAcquired) {
+      return res.status(429).json({
+        success: false,
+        message: "Vendor busy. Try again."
+      });
     }
 
     // ================= SAVE BOOKING =================
@@ -90,16 +87,18 @@ exports.createAtomicBooking = async (req, res) => {
 
     console.log("Saving Booking:", newBooking);
 
-   await Promise.race([
-  newBooking.save(),
-  new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Save timeout")), 5000)
-  )
-]);
-    res.status(201).json({ success: true, message: "Booking Request Sent!" });      
+    await newBooking.save();   // ✅ SIMPLE SAVE (NO TIMEOUT BUG)
+
+    console.log("✅ Booking saved");
+
+    return res.status(201).json({
+      success: true,
+      message: "Booking Request Sent!"
+    });
 
   } catch (err) {
     console.error("❌ Booking Error:", err);
+
     return res.status(500).json({
       success: false,
       message: err.message
@@ -114,110 +113,6 @@ exports.createAtomicBooking = async (req, res) => {
     } catch (err) {
       console.log("⚠️ Redis unlock skipped");
     }
-  }
-};
-
-
-// ================= GET VENDOR BOOKINGS =================
-exports.getVendorBookings = async (req, res) => {
-  try {
-    const { vendorId } = req.params;
-
-    const bookings = await Booking.find({
-      $or: [
-        { vendorId: vendorId },
-        { vendorId: new mongoose.Types.ObjectId(vendorId) }
-      ]
-    })
-      .populate('userId', 'name email contact')
-      .populate('serviceId', 'businessName price photo style')
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({ success: true, bookings });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-
-// ================= UPDATE STATUS =================
-exports.updateBookingStatus = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const { status } = req.body;
-
-    const updatedBooking = await Booking.findByIdAndUpdate(
-      bookingId,
-      { status },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedBooking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-
-    res.status(200).json({ success: true, booking: updatedBooking });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-
-// ================= CANCEL =================
-exports.cancleBooking = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const updatedBooking = await Booking.findByIdAndUpdate(
-      id,
-      { status: "Cancelled" },
-      { new: true }
-    );
-
-    if (!updatedBooking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Booking cancelled successfully",
-      booking: updatedBooking
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Cancellation failed",
-      error: error.message
-    });
-  }
-};
-
-
-// ================= DELETE =================
-exports.deleteBooking = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const deletedBooking = await Booking.findByIdAndDelete(id);
-
-    if (!deletedBooking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Booking deleted successfully"
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Deletion failed",
-      error: error.message
-    });
   }
 };
 
