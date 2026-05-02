@@ -17,18 +17,12 @@ client.on('error', (err) => console.log('Redis Error:', err));
 (async () => {
   try {
     if (!client.isOpen) {
-        await Promise.race([
-  newBooking.save(),
-  new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Save timeout")), 5000)
-  )
-]);
-    //   await Promise.race([
-    //     client.connect(),
-    //     new Promise((_, reject) =>
-    //       setTimeout(() => reject(new Error("Redis connect timeout")), 5000)
-    //     )
-    //   ]);
+      await Promise.race([
+        client.connect(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Redis connect timeout")), 5000)
+        )
+      ]);
       console.log("✅ Redis connected");
     }
   } catch (err) {
@@ -96,12 +90,13 @@ exports.createAtomicBooking = async (req, res) => {
 
     console.log("Saving Booking:", newBooking);
 
-    await newBooking.save();
-
-    return res.status(201).json({
-      success: true,
-      message: "Booking Request Sent!"
-    });
+   await Promise.race([
+  newBooking.save(),
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Save timeout")), 5000)
+  )
+]);
+    res.status(201).json({ success: true, message: "Booking Request Sent!" });      
 
   } catch (err) {
     console.error("❌ Booking Error:", err);
