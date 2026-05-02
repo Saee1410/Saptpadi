@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { getUserById, updateUserProfile, updateUser } = require('../controllers/userController');
 
+
+router.get('/', (req, res) => {
+  res.json({ success: true, message: "Users API working ✅" });
+});
+
 router.get('/:id', getUserById);
 
 router.put('/update/:id', updateUserProfile);
