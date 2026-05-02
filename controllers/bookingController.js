@@ -17,12 +17,18 @@ client.on('error', (err) => console.log('Redis Error:', err));
 (async () => {
   try {
     if (!client.isOpen) {
-      await Promise.race([
-        client.connect(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Redis connect timeout")), 5000)
-        )
-      ]);
+        await Promise.race([
+  newBooking.save(),
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Save timeout")), 5000)
+  )
+]);
+    //   await Promise.race([
+    //     client.connect(),
+    //     new Promise((_, reject) =>
+    //       setTimeout(() => reject(new Error("Redis connect timeout")), 5000)
+    //     )
+    //   ]);
       console.log("✅ Redis connected");
     }
   } catch (err) {
