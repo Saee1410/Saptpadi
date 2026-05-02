@@ -15,12 +15,22 @@ const app = express();
 //Middleware
 app.use(express.json());
 app.use(cors({
-    origin: "https://saptpadi-frontend.vercel.app", // Sarva origins la allow kara (development sathi)
-    methods: ["GET", "POST", "DELETE", "PUT"], // Allowed HTTP methods
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true, // Cookies and authentication headers sathi allow kara    
-    optionsSuccessStatus: 200 // Preflight requests sathi status code
+  origin: [
+    "https://saptpadi-frontend.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000"
+  ],
+  methods: ["GET", "POST", "DELETE", "PUT"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
+// app.use(cors({
+//     origin: "https://saptpadi-frontend.vercel.app", // Sarva origins la allow kara (development sathi)
+//     methods: ["GET", "POST", "DELETE", "PUT"], // Allowed HTTP methods
+//     allowedHeaders: ["Content-Type", "Authorization"],
+//     credentials: true, // Cookies and authentication headers sathi allow kara    
+//     optionsSuccessStatus: 200 // Preflight requests sathi status code
+// }));
 
 app.options('*', cors());
 //app.use(cors());
@@ -50,6 +60,10 @@ mongoose.connect(process.env.MONGO_URI)
     app.use('/api/budget', budgetRoutes);
     app.use('/api/bookings', bookingRoutes);
     app.use('/api/users', userRoutes);
+
+    app.get("/", (req, res) => {
+  res.send("API Running 🚀");
+});
 
     
     const PORT = process.env.PORT || 5000;
