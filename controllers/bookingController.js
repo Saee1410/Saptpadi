@@ -31,30 +31,40 @@ exports.createAtomicBooking = async (req, res) => {
     let lockKey = null;
 
     try {
-        console.log("Incoming Booking:", req.body);
+        console.log("🔥 API HIT");
 
-        const { serviceId, userId, startDate, endDate, message, eventCity, vendorId: providedVendorId } = req.body;
+        const { serviceId, userId, startDate, endDate, message, eventCity, vendorId } = req.body;
 
-        let finalVendorId = providedVendorId;
-
-        // ✅ Service check
-        const serviceInDb = await Service.findById(serviceId).catch(() => null);
-        
-        if (serviceInDb) {
-            finalVendorId = serviceInDb.vendorId;
+        // ❌ DB BLOCK टाळण्यासाठी timeout
+        let serviceInDb = null;
+        try {
+            serviceInDb = await Promise.race([
+                Service.findById(serviceId),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("DB timeout")), 3000)
+                )
+            ]);
+        } catch (err) {
+            console.log("⚠️ DB skipped:", err.message);
         }
 
-        // ✅ Vendor check
+        const finalVendorId = serviceInDb?.vendorId || vendorId;
+
         if (!finalVendorId) {
             return res.status(400).json({ success: false, message: "Vendor ID missing" });
         }
 
-        // ================= REDIS LOCK =================
+        // ✅ REDIS LOCK (NON-BLOCKING)
         try {
             if (client.isOpen) {
                 lockKey = `lock:vendor:${finalVendorId}`;
 
-                let acquired = await client.set(lockKey, "locked", { NX: true, EX: 10 });
+                const acquired = await Promise.race([
+                    client.set(lockKey, "locked", { NX: true, EX: 10 }),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("Redis timeout")), 2000)
+                    )
+                ]);
 
                 if (!acquired) {
                     return res.status(429).json({
@@ -67,47 +77,52 @@ exports.createAtomicBooking = async (req, res) => {
             console.log("⚠️ Redis skipped:", err.message);
         }
 
-        // ================= SAVE BOOKING =================
+        console.log("🔥 Before Save");
+
         const newBooking = new Booking({
             serviceId: serviceInDb ? serviceInDb._id : null,
-            userId: userId, 
-            vendorId: finalVendorId, 
-            startDate: new Date(startDate), 
+            userId,
+            vendorId: finalVendorId,
+            startDate: new Date(startDate),
             endDate: new Date(endDate),
-            message, 
-            eventCity, 
+            message,
+            eventCity,
             status: "Pending"
         });
 
-        console.log("Saving Booking:", newBooking);
+        // ✅ SAVE WITH TIMEOUT
+        await Promise.race([
+            newBooking.save(),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Save timeout")), 4000)
+            )
+        ]);
 
-        // ✅ NORMAL SAVE (NO Promise.race ❌)
-        await newBooking.save();
+        console.log("🔥 Booking Saved");
 
-        res.status(201).json({ 
-            success: true, 
-            message: "Booking Request Sent!" 
+        return res.status(201).json({
+            success: true,
+            message: "Booking Request Sent!"
         });
 
     } catch (err) {
-        console.error("❌ Booking Error:", err);
-        res.status(500).json({ 
-            success: false, 
-            message: err.message 
+        console.error("❌ ERROR:", err.message);
+
+        return res.status(500).json({
+            success: false,
+            message: err.message
         });
 
     } finally {
-        // ================= RELEASE LOCK =================
         try {
             if (lockKey && client.isOpen) {
                 await client.del(lockKey);
             }
         } catch (err) {
-            console.log("⚠️ Redis unlock skipped");
+            console.log("⚠️ Unlock skipped");
         }
     }
 };
-
 
 // ================= GET VENDOR BOOKINGS =================
 exports.getVendorBookings = async (req, res) => {
