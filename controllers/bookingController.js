@@ -36,16 +36,21 @@ exports.createAtomicBooking = async (req, res) => {
 
         // Redis Lock logic... (बाकी कोड तसाच ठेवा)
         
-        const newBooking = new Booking({
-            serviceId, 
-            userId, 
-            vendorId: finalVendorId, 
-            startDate: new Date(startDate), 
-            endDate: new Date(endDate),
-            message, 
-            eventCity, 
-            status: "Pending"
-        });
+      const newBooking = new Booking({
+    // जर मॅन्युअल आयडी असेल, तर तो डेटाबेसमध्ये नसल्यामुळे एरर येऊ शकतो.
+    // खात्री करा की serviceId हा प्रॉपर 24-character hex string आहे.
+    serviceId: serviceId, 
+    userId: userId, 
+    vendorId: finalVendorId, 
+    startDate: new Date(startDate), 
+    endDate: new Date(endDate),
+    message, 
+    eventCity, 
+    status: "Pending"
+});
+
+// सेव्ह करण्यापूर्वी एकदा लॉग करून बघा डेटा काय येतोय
+console.log("Saving Booking:", newBooking); 
 
         await newBooking.save();
         res.status(201).json({ success: true, message: "Booking Request Sent!" });

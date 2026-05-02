@@ -2,10 +2,16 @@ const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
     serviceId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Service', 
-        required: true 
-    },
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Service', 
+    required: false // <--- इथे 'false' करा
+},
+
+    // serviceId: { 
+    //     type: mongoose.Schema.Types.ObjectId, 
+    //     ref: 'Service', 
+    //     required: true 
+    // },
 
     userId: {
         type: mongoose.Schema.Types.ObjectId,
