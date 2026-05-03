@@ -1,30 +1,9 @@
 const Booking = require('../models/Booking');
 const mongoose = require('mongoose');   
 const Service = require('../models/Service');
-const redis = require('redis');
 
-// ✅ Redis client (safe)
-const client = redis.createClient({ 
-    url: 'redis://default:********@coherent-filly-112366.upstash.io:6379',
-    socket: {
-        connectTimeout: 5000
-    }
-});
 
-client.on('error', (err) => console.log('Redis Error', err));
-
-// ✅ Safe Redis connect (non-blocking)
-(async () => { 
-    try {
-        if (!client.isOpen) {
-            await client.connect();
-            console.log("✅ Redis connected");
-        }
-    } catch (err) {
-        console.log("⚠️ Redis skipped:", err.message);
-    }
-})();
-
+const { client, connectRedis } = require('../config/redis');
 
 // ================= CREATE BOOKING =================
 exports.createAtomicBooking = async (req, res) => {
@@ -91,7 +70,7 @@ exports.createAtomicBooking = async (req, res) => {
         });
 
         // ✅ SAVE WITH TIMEOUT
-        await Promise.race([
+        await Promise.await([
             newBooking.save(),
             new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Save timeout")), 4000)
