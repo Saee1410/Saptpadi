@@ -2,7 +2,7 @@
 const { createClient } = require('redis');
 
 const client = createClient({
-  url: "rediss://default:********@coherent-filly-112366.upstash.io:6379",
+  url: process.env.REDIS_URI,
   socket: {
     connectTimeout: 10000,
     reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
