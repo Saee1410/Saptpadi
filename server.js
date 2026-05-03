@@ -32,7 +32,7 @@ app.use(cors({
 //     optionsSuccessStatus: 200 // Preflight requests sathi status code
 // }));
 
-app.options('*', cors());
+app.options('(.*)', cors());
 //app.use(cors());
 
 //uploads foldera for storing images

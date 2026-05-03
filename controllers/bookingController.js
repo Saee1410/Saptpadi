@@ -69,8 +69,8 @@ exports.createAtomicBooking = async (req, res) => {
             status: "Pending"
         });
 
-        // ✅ SAVE WITH TIMEOUT
-        await Promise.await([
+        // ✅ SAVE WITH TIMEOUT (use Promise.race to enforce save timeout)
+        await Promise.race([
             newBooking.save(),
             new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Save timeout")), 4000)
